@@ -56,6 +56,7 @@ def add_sample_data():
     if book_count == 0:
         # Add sample books
         sample_books = [
+            ('Test Book', 'Test Author', '1234743273565', 4),
             ('The Great Gatsby', 'F. Scott Fitzgerald', '9780743273565', 3),
             ('To Kill a Mockingbird', 'Harper Lee', '9780061120084', 2),
             ('1984', 'George Orwell', '9780451524935', 1)
@@ -74,7 +75,14 @@ def add_sample_data():
         ''', ('123456', 3, 
               (datetime.now() - timedelta(days=5)).isoformat(),
               (datetime.now() + timedelta(days=9)).isoformat()))
-        
+        conn.execute('''
+    INSERT INTO borrow_records (patron_id, book_id, borrow_date, due_date)
+    VALUES (?, ?, ?, ?)
+''', (
+    '123456', 4,
+    (datetime.now() - timedelta(days=20)).isoformat(),
+    (datetime.now() - timedelta(days=3)).isoformat()
+))
         # Update available copies for 1984
         conn.execute('UPDATE books SET available_copies = 0 WHERE id = 3')
         
@@ -109,16 +117,17 @@ def get_book_by_isbn(isbn: str) -> Optional[Dict]:
 def get_book_by_author(author: str) -> Optional[Dict]:
     """Get a specific book by author."""
     conn = get_db_connection()
-    book = conn.execute('SELECT * FROM books WHERE isbn LIKE LOWER(?)', (f"%{author}%",)).fetchone()
+    book = conn.execute('SELECT * FROM books WHERE author LIKE LOWER(?)', (f"%{author}%",)).fetchall()
     conn.close()
-    return dict(book) if book else None
+    return [dict(r) for r in book]
+
 # Newly added function
 def get_book_by_title(title: str) -> Optional[Dict]:
     """Get a specific book by title."""
     conn = get_db_connection()
-    book = conn.execute('SELECT * FROM books WHERE title LIKE LOWER(?)', (f"%{title}%",)).fetchone()
+    book = conn.execute('SELECT * FROM books WHERE title LIKE LOWER(?)', (f"%{title}%",)).fetchall()
     conn.close()
-    return dict(book) if book else None
+    return [dict(r) for r in book]
 
 def get_patron_borrowed_books(patron_id: str) -> List[Dict]:
     """Get currently borrowed books for a patron."""
@@ -166,7 +175,7 @@ def get_borrow_record(patron_id: str, book_id: Optional[int] = None) -> List[Dic
             'title': record['title'],
             'author': record['author'],
             'due_date': datetime.fromisoformat(record['due_date']),
-            'return_date': datetime.fromisoformat(record['return_date'])
+            'return_date': datetime.fromisoformat(record['return_date'])if record['return_date'] is not None else None
         })
     
     return book_record

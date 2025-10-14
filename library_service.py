@@ -8,8 +8,9 @@ from typing import Dict, List, Optional, Tuple
 from database import (
     get_book_by_id, get_book_by_isbn, get_patron_borrow_count,
     insert_book, insert_borrow_record, update_book_availability,
-    update_borrow_record_return_date, get_all_books, get_borrow_record, get_book_by_isbn, get_book_by_author, get_book_by_title, get_patron_borrowed_books
+    update_borrow_record_return_date, get_all_books, get_borrow_record, get_book_by_author, get_book_by_title, get_patron_borrowed_books
 )
+from math import ceil
 
 def add_book_to_catalog(title: str, author: str, isbn: str, total_copies: int) -> Tuple[bool, str]:
     """
@@ -84,7 +85,7 @@ def borrow_book_by_patron(patron_id: str, book_id: int) -> Tuple[bool, str]:
     # Check patron's current borrowed books count
     current_borrowed = get_patron_borrow_count(patron_id)
     
-    if current_borrowed > 5:
+    if current_borrowed >= 5:
         return False, "You have reached the maximum borrowing limit of 5 books."
     
     # Create borrow record
@@ -111,31 +112,28 @@ def return_book_by_patron(patron_id: str, book_id: int) -> Tuple[bool, str]:
     """
 
     # Validate patron ID
-    if not patron_id or not patron_id.isdigit() or len(patron_id) != 6:
+    if not isinstance(patron_id, str) or not patron_id.isdigit() or len(patron_id) != 6:
         return False, "Invalid patron ID. Must be exactly 6 digits."
     
     # Validate book ID
-    if not book_id or not book_id.isdigit() or book_id < 0:
+    if not isinstance(book_id, int) or book_id <= 0:
         return False, "Invalid book ID. Must be a positive integer."
     
     book = get_book_by_id(book_id)
     if not book:
         return False, "Book not found."
     
-    borrowed_books = borrow_book_by_patron(patron_id)
+    borrowed_books = get_patron_borrowed_books(patron_id)
     for row in borrowed_books: 
-        if borrowed_books["book_id"] == book_id:
+        if row["book_id"] == book_id:
             update_book_availability(book_id, 1)
             currentTime = datetime.now()
             update_borrow_record_return_date(patron_id, book_id, currentTime)
             calculation = calculate_late_fee_for_book(patron_id, book_id)
             lateFee = calculation["fee_amount"]
-            return True, "Returned book successfully with a late fee of "
-        else:        
-            return False, "Could not return book"
-    
+            return True, f"Returned book successfully with a late fee of ${lateFee:.2f}."    
 
-    return False, "Book return functionality is not yet implemented."
+    return False, "Book unable to be returned."
 
 def calculate_late_fee_for_book(patron_id: str, book_id: int) -> Dict:
     """
@@ -151,16 +149,25 @@ def calculate_late_fee_for_book(patron_id: str, book_id: int) -> Dict:
     }
     """
     # Validate patron ID
-    if not patron_id or not patron_id.isdigit() or len(patron_id) != 6:
-        return False, "Invalid patron ID. Must be exactly 6 digits."
-    
+    if not isinstance(patron_id, str) or not patron_id.isdigit() or len(patron_id) != 6:
+        return {"fee_amount": 0.0, "days_overdue": 0, "status": "Invalid patron ID"}    
     # Validate book ID
-    if not book_id or not book_id.isdigit() or book_id < 0:
-        return False, "Invalid book ID. Must be a positive integer."
+    if not isinstance(book_id, int) or book_id <= 0:
+        return {"fee_amount": 0.0, "days_overdue": 0, "status": "Invalid book ID"}
+
+    rows = get_borrow_record(patron_id, book_id)
+    if not rows:
+        return {"fee_amount": 0.0, "days_overdue": 0, "status": "No borrow record"}
     
-    record = get_borrow_record
-    time_late = record['return_date'] - record['due_date']
-    days_late = time_late.days
+    record = rows[0]
+    due_val = record.get('due_date')
+    ret_val = record.get('return_date')
+
+    due_dt = datetime.fromisoformat(due_val) if isinstance(due_val, str) else due_val
+    end_dt = (datetime.fromisoformat(ret_val) if isinstance(ret_val, str) else ret_val) or datetime.now()
+
+    days_late = max(0, ceil((end_dt - due_dt).total_seconds() / 86400))
+
     if (days_late > 0):
         if(days_late > 7 ):
             late_fee = 7*0.5 + (days_late - 7)*1
@@ -185,17 +192,20 @@ def search_books_in_catalog(search_term: str, search_type: str) -> List[Dict]:
     
     TODO: Implement R6 as per requirements
     """
-
+    if not isinstance(search_term, str) or not search_term.strip():
+            return []
+    search_type = (search_type or "").lower().strip()
+    
     """Get a specific book by ISBN."""
     if(search_type == 'title'):
-        books = get_book_by_title
+        return get_book_by_title(search_term) or []
     elif(search_type == 'author'):
-        books = get_book_by_author
+        return get_book_by_author(search_term) or []
     elif(search_type == 'isbn'):
-        books = get_book_by_isbn
+        res = get_book_by_isbn(search_term)
+        return [res] if res else []
     else:
-        return False
-    return books
+        return []
 
 def get_patron_status_report(patron_id: str) -> Dict:
     """
@@ -203,6 +213,9 @@ def get_patron_status_report(patron_id: str) -> Dict:
     
     TODO: Implement R7 as per requirements
     """
+    # Validate patron ID
+    if not isinstance(patron_id, str) or not patron_id.isdigit() or len(patron_id) != 6:
+        return {}   
     borrowed_books = get_patron_borrowed_books(patron_id)
     total_fees_owed = 0.0
     for book in borrowed_books:

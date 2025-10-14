@@ -34,10 +34,10 @@ jobs:
 
       - name: Run tests
         run: | 
-          pytest tests/f1_tests.py
-          pytest tests/f2_tests.py
-          pytest tests/f3_tests.py
-          pytest tests/f4_tests.py
-          pytest tests/f5_tests.py
-          pytest tests/f6_tests.py
+          pytest tests\f1_test.py
+          pytest tests\f2_test.py
+          pytest tests\f3_test.py
+          pytest tests\f4_test.py
+          pytest tests\f5_test.py
+          pytest tests\f6_test.py
           

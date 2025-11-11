@@ -1,7 +1,8 @@
 import pytest
-from library_service import borrow_book_by_patron
+from services.library_service import borrow_book_by_patron
 from database import init_database, add_sample_data
 from os import remove
+from datetime import datetime, timedelta
 
 init_database()
 add_sample_data()
@@ -9,9 +10,9 @@ add_sample_data()
 def test_borrow_book_valid_input():
     """Test borrowing a book with valid input."""
     success, message = borrow_book_by_patron("123456", 2)
-    
+    expected_due_date = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d")
     assert success == True
-    assert 'successfully borrowed "the great gatsby". due date: 2025-10-27' in message.lower()
+    assert f'successfully borrowed "the great gatsby". due date: {expected_due_date}' in message.lower()
 
 def test_borrow_book_invalid_patron_id():
     """Test borrowing a book with invalid patron ID."""

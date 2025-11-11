@@ -1,7 +1,7 @@
 import pytest
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from library_service import (
+from services.library_service import (
     add_book_to_catalog
 )
 from database import init_database

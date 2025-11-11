@@ -1,5 +1,5 @@
 import pytest
-from library_service import (
+from services.library_service import (
     calculate_late_fee_for_book
 )
 from database import init_database, add_sample_data
